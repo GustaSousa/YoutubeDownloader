@@ -1,6 +1,5 @@
 import ssl
-import certifi
-from pytube import YouTube
+import yt_dlp as youtube_dl
 import os
 import ffmpeg
 import socket
@@ -10,30 +9,30 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 def download_video(url):
     try:
-        # Cria um objeto YouTube
-        yt = YouTube(url)
-        
-        # Seleciona o stream de vídeo com a maior resolução
-        video_stream = yt.streams.filter(file_extension='mp4').order_by('resolution').desc().first()
-        
-        # Baixa o vídeo com a melhor resolução
-        print(f"Baixando vídeo: {yt.title}")
-        video_file_path = video_stream.download(filename='video')
-        video_file_path_with_extension = video_file_path + '.' + video_stream.mime_type.split('/')[1]
-        os.rename(video_file_path, video_file_path_with_extension)
-        print(f"Download do vídeo concluído: {yt.title}")
-        
-        # Seleciona a faixa de áudio
-        audio_stream = yt.streams.filter(only_audio=True).first()
-        
-        # Baixa a faixa de áudio em formato MP3
-        print(f"Baixando áudio: {yt.title}")
-        audio_file_path = audio_stream.download(filename='audio')
-        audio_file_path_with_extension = audio_file_path + '.' + audio_stream.mime_type.split('/')[1]
-        os.rename(audio_file_path, audio_file_path_with_extension)
-        print(f"Download do áudio concluído: {yt.title}")
-        
-        return yt.title, video_file_path_with_extension, audio_file_path_with_extension
+        ydl_opts = {
+            'format': 'bestvideo+bestaudio/best',
+            'outtmpl': '%(title)s.%(ext)s',
+            'merge_output_format': 'mp4',
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4'
+            }]
+        }
+
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            result = ydl.extract_info(url, download=False)
+            title = result.get('title', None)
+
+            # Baixa o vídeo e áudio
+            print(f"Baixando vídeo e áudio: {title}")
+            ydl.download([url])
+
+            video_file = f"{title}.mp4"
+            audio_file = f"{title}.m4a"
+            return title, video_file, audio_file
+    except youtube_dl.DownloadError as e:
+        print(f"Ocorreu um erro ao baixar o vídeo: {e}")
+        return None, None, None
     except Exception as e:
         print(f"Ocorreu um erro: {e}")
         return None, None, None
@@ -61,7 +60,7 @@ if __name__ == "__main__":
     title, video_file, audio_file = download_video(url)
     
     if video_file and audio_file:
-        output_file = f"{title}.mp4"
+        output_file = f"{title}_merged.mp4"
         merge_video_audio(video_file, audio_file, output_file)
     else:
         print("Falha ao baixar vídeo ou áudio.")
