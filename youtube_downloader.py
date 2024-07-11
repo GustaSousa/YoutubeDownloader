@@ -3,9 +3,14 @@ import yt_dlp as youtube_dl
 import os
 import ffmpeg
 import socket
+import re
 
 # Configura o contexto SSL para usar o CA Bundle do certifi
 ssl._create_default_https_context = ssl._create_unverified_context
+
+def sanitize_filename(filename):
+    """Remove caracteres especiais para criar um nome de arquivo seguro."""
+    return re.sub(r'[^\w\s-]', '', filename).strip().replace(' ', '_')
 
 def download_video(url):
     try:
@@ -22,14 +27,22 @@ def download_video(url):
         with youtube_dl.YoutubeDL(ydl_opts) as ydl:
             result = ydl.extract_info(url, download=False)
             title = result.get('title', None)
+            sanitized_title = sanitize_filename(title)
 
             # Baixa o vídeo e áudio
             print(f"Baixando vídeo e áudio: {title}")
             ydl.download([url])
 
-            video_file = f"{title}.mp4"
-            audio_file = f"{title}.m4a"
-            return title, video_file, audio_file
+            video_file = f"{sanitized_title}.mp4"
+            audio_file = f"{sanitized_title}.m4a"
+
+            # Renomeia os arquivos baixados
+            if os.path.exists(f"{title}.mp4"):
+                os.rename(f"{title}.mp4", video_file)
+            if os.path.exists(f"{title}.m4a"):
+                os.rename(f"{title}.m4a", audio_file)
+
+            return sanitized_title, video_file, audio_file
     except youtube_dl.DownloadError as e:
         print(f"Ocorreu um erro ao baixar o vídeo: {e}")
         return None, None, None
